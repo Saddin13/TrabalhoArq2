@@ -3,10 +3,21 @@
 #include <stdlib.h>
 #include <time.h>
 #include <omp.h>
-#include "Paralelism.h"
+#include <string.h> 
 using namespace std;
 
-void PrintSudoku(char m[9][9])
+struct Posicao {
+    int linha;
+    int coluna;
+};
+
+// Protótipos das funções
+void PrintSudoku(int m[9][9]);
+bool ValidadorDeSudoku(int m[9][9], int linha, int coluna, int num);
+Posicao encontrarVazia(int tabuleiro[9][9]);
+bool resolverSudokuParalelo(int tabuleiro[9][9]);
+void PrintSudoku(int m[9][9])
+
 {
     printf("\t0 1 2 3 4 5 6 7 8  | \n\t------------------ |\n\t");
     for (int i = 0; i < 9; i++)
@@ -14,15 +25,15 @@ void PrintSudoku(char m[9][9])
         for (int j = 0; j < 9; j++)
         {
             if (m[i][j] == 0)
-                printf(". ");  // Imprime '.' para posições vazias
+                printf(". ");
             else
-            printf("%d ", m[i][j]);
+                printf("%d ", m[i][j]);
         }
         printf(" | %d\n\t", i);
     }
 }
 
-bool ValidadorDeSudoku(char m[9][9], int linha, int coluna, int num) {
+bool ValidadorDeSudoku(int m[9][9], int linha, int coluna, int num) {
     for (int j = 0; j < 9; j++) {
         if (m[linha][j] == num) return false;
     }
@@ -42,75 +53,24 @@ bool ValidadorDeSudoku(char m[9][9], int linha, int coluna, int num) {
     return true;
 }
 
-void GerarValoresAleatorios(char m[9][9], int quantidade) {
-    srand(time(NULL));
-    
-    for (int k = 0; k < quantidade; k++) {
-        int i = rand() % 9;
-        int j = rand() % 9;
-        int valor = (rand() % 9) + 1;
-        
-        if (m[i][j] == 0) {
-            if (ValidadorDeSudoku(m, i, j, valor)) {
-                m[i][j] = valor;
-            } else {
-                k--; // Tenta novamente se o número não pode ser inserido
-            }
-        } else {
-            k--; // Posição já ocupada, tenta novamente
-        }
-    }
-}
-
 int main() {
-    cout << "Voce quer Resolver o Sudoku ou Ver a Resposta Usando Paralelismo?\n";
-    cout << "1 - Resolver\n";
-    cout << "2 - Ultilizar Paralelismo\n";
-    int opcao;
-    cin >> opcao;
-
-
-    char m[9][9] = {
-        {0,0,0,0,0,0,0,0,0},
-        {0,0,0,0,0,0,0,0,0},
-        {0,0,0,0,0,0,0,0,0},
-        {0,0,0,0,0,0,0,0,0},
-        {0,0,0,0,0,0,0,0,0},
-        {0,0,0,0,0,0,0,0,0},
-        {0,0,0,0,0,0,0,0,0},
-        {0,0,0,0,0,0,0,0,0},
-        {0,0,0,0,0,0,0,0,0},
+    omp_set_num_threads(omp_get_num_procs());
+    int m[9][9] = {
+        {8,0,0,0,0,0,0,0,0},
+        {0,0,3,6,0,0,0,0,0},
+        {0,7,0,0,9,0,2,0,0},
+        {0,5,0,0,0,7,0,0,0},
+        {0,0,0,0,4,5,7,0,0},
+        {0,0,0,1,0,0,0,3,0},
+        {0,0,1,0,0,0,0,6,8},
+        {0,0,8,5,0,0,0,1,0},
+        {0,9,0,0,0,0,4,0,0},
     };
-    cout << "\nGerando Sudoku...\n";
     system("cls");
 
-    GerarValoresAleatorios(m, 20); // Gera 20 números aleatórios
     PrintSudoku(m);
     system("cls");
-
-
-    if (opcao == 1) {
-        while (true) {
-            int linha, coluna, valor;
-            cout << "Digite a linha (0-8), coluna (0-8) e valor (1-9) para inserir (separados por espaco)\n";
-            cin >> linha >> coluna >> valor;
-
-            if (linha < 0 || linha > 8 || coluna < 0 || coluna > 8 || valor < 1 || valor > 9) {
-                cout << "Entrada invalida. Tente novamente.\n";
-                continue;
-            }
-
-            if (ValidadorDeSudoku(m, linha, coluna, valor)) {
-                m[linha][coluna] = valor;
-                system("cls");
-                PrintSudoku(m);
-            } else {
-                cout << "Valor invalido para a posiçao. Tente novamente.\n";
-            }
-        }
-        return 0;
-    } else if (opcao == 2) {
-            cout << "\nResolvendo...\n";
+        cout << "\nResolvendo...\n";
         double inicio = omp_get_wtime();
         if (resolverSudokuParalelo(m)) {
             double fim = omp_get_wtime();
@@ -121,8 +81,55 @@ int main() {
             cout << "\nNao foi possivel resolver o Sudoku\n";
         }
          return 0;
-    } else {
-        cout << "Opcao invalida. Por favor, escolha 1 ou 2.\n";
-        return 1;
+}
+
+Posicao encontrarVazia(int tabuleiro[9][9]) {
+    Posicao pos = {-1, -1};
+    for (int i = 0; i < 9; i++) {
+        for (int j = 0; j < 9; j++) {
+            if (tabuleiro[i][j] == 0) {
+                pos.linha = i;
+                pos.coluna = j;
+                return pos;
+            }
+        }
     }
+    return pos;
+}
+
+bool resolverSudokuParalelo(int tabuleiro[9][9]) {
+    Posicao vazia = encontrarVazia(tabuleiro);
+    if (vazia.linha == -1) return true;
+
+    bool resolvido = false;
+    int copia_tabuleiro[9][9];
+    
+    #pragma omp parallel
+    {
+        #pragma omp single
+        {
+            for (int num = 1; num <= 9 && !resolvido; num++) {
+                if (ValidadorDeSudoku(tabuleiro, vazia.linha, vazia.coluna, num)) {
+                    #pragma omp task shared(resolvido)
+                    {
+                        // Cria uma cópia local do tabuleiro para cada task
+                        memcpy(copia_tabuleiro, tabuleiro, sizeof(int) * 9 * 9);
+                        copia_tabuleiro[vazia.linha][vazia.coluna] = num;
+                        
+                        if (resolverSudokuParalelo(copia_tabuleiro)) {
+                            #pragma omp critical
+                            {
+                                if (!resolvido) {
+                                    memcpy(tabuleiro, copia_tabuleiro, sizeof(int) * 9 * 9);
+                                    resolvido = true;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            #pragma omp taskwait
+        }
+    }
+    return resolvido;
 }

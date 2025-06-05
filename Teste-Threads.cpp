@@ -48,7 +48,7 @@ bool ValidadorDeSudoku(int m[9][9], int linha, int coluna, int num) {
 }
 
 int main() {
-    omp_set_num_threads(8);
+    omp_set_num_threads(8); // Define o número de threads a serem usadas
 
     //O MAIS DIFICIL DA HISTORIA DE ACORDO COM O GOOGLE
     int m[9][9] = {
@@ -62,6 +62,18 @@ int main() {
         {0,0,8,5,0,0,0,1,0},
         {0,9,0,0,0,0,4,0,0},
     };
+
+    /*int m[9][9] = {
+    {5,3,0,0,7,0,0,0,0},
+    {6,0,0,1,9,5,0,0,0},
+    {0,9,8,0,0,0,0,6,0},
+    {8,0,0,0,6,0,0,0,3},
+    {4,0,0,8,0,3,0,0,1},
+    {7,0,0,0,2,0,0,0,6},
+    {0,6,0,0,0,0,2,8,0},
+    {0,0,0,4,1,9,0,0,5},
+    {0,0,0,0,8,0,0,7,9}
+    };*/
 
     system("cls");
 

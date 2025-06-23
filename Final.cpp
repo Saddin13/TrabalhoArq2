@@ -1,5 +1,6 @@
 #include <iostream>
 #include <unistd.h>
+#include <stdio.h>
 #include <sys/wait.h>
 #include <cstring>
 #include <vector>
@@ -40,7 +41,7 @@ bool ValidadorDeSudoku(int m[9][9], int linha, int coluna, int num) {
     return true;
 }
 
-Posicao encontrarVazia(int tabuleiro[9][9]) {
+struct Posicao encontrarVazia(int tabuleiro[9][9]) {
     Posicao pos = {-1, -1};
     for (int i = 0; i < 9; i++) {
         for (int j = 0; j < 9; j++) {
@@ -55,13 +56,17 @@ Posicao encontrarVazia(int tabuleiro[9][9]) {
 }
 
 // Função sequencial para o worker
-bool resolverSudoku(int tabuleiro[9][9]) {
+bool resolverSudoku(int tabuleiro[9][9], int nivel = 0) {
     Posicao vazia = encontrarVazia(tabuleiro);
     if (vazia.linha == -1) return true;
     for (int num = 1; num <= 9; num++) {
         if (ValidadorDeSudoku(tabuleiro, vazia.linha, vazia.coluna, num)) {
+            // LOG semelhante ao Teste-Threads.cpp
+            printf("[DEBUG] PID %d tentando num=%d na pos (%d,%d) nivel=%d\n",
+                   getpid(), num, vazia.linha, vazia.coluna, nivel);
+
             tabuleiro[vazia.linha][vazia.coluna] = num;
-            if (resolverSudoku(tabuleiro)) return true;
+            if (resolverSudoku(tabuleiro, nivel + 1)) return true;
             tabuleiro[vazia.linha][vazia.coluna] = 0;
         }
     }
@@ -78,15 +83,15 @@ void read_board(int fd, int m[9][9]) {
 
 int main() {
     int m[9][9] = {
-        {8,0,0,0,0,0,0,0,0},
-        {0,0,3,6,0,0,0,0,0},
-        {0,7,0,0,9,0,2,0,0},
-        {0,5,0,0,0,7,0,0,0},
-        {0,0,0,0,4,5,7,0,0},
-        {0,0,0,1,0,0,0,3,0},
-        {0,0,1,0,0,0,0,6,8},
-        {0,0,8,5,0,0,0,1,0},
-        {0,9,0,0,0,0,4,0,0},
+        {0,0,0, 0,0,0, 0,1,2},
+        {0,0,0, 0,0,0, 7,0,0},
+        {0,0,1, 0,9,5, 0,0,0},
+        {0,0,0, 0,0,0, 0,0,0},
+        {0,0,0, 7,0,8, 0,0,0},
+        {0,0,0, 0,0,0, 0,0,0},
+        {0,0,0, 5,4,0, 3,0,0},
+        {0,0,2, 0,0,0, 0,0,0},
+        {6,9,0, 0,0,0, 0,0,0}
     };
 
     PrintSudoku(m);
@@ -109,18 +114,20 @@ int main() {
                 if (read(to_worker[i][0], &task, sizeof(int)) != sizeof(int)) break;
                 read_board(to_worker[i][0], board);
                 bool solved = resolverSudoku(board);
-                write(from_worker[i][1], &solved, sizeof(int));
-                if (solved) write_board(from_worker[i][1], board);
+                write(from_worker[i][1], &solved, sizeof(bool));
+                if (solved) {
+                    write_board(from_worker[i][1], board);
+                    break; // Sai do loop ao encontrar solução
+                }
             }
-            exit(0);
+            close(to_worker[i][0]);
+            close(from_worker[i][1]);
+            return 0; // encerra o processo filho!
         }
-        close(to_worker[i][0]);
-        close(from_worker[i][1]);
     }
 
     // Gerente: distribui as primeiras 4 possibilidades para os workers
     Posicao vazia = encontrarVazia(m);
-    int worker_idx = 0;
     vector<int> nums;
     for (int num = 1; num <= 9; num++) {
         if (ValidadorDeSudoku(m, vazia.linha, vazia.coluna, num)) {
@@ -140,13 +147,14 @@ int main() {
         write_board(to_worker[i][1], board);
     }
 
-    // Espera resposta dos workers
+    // Espera resposta dos workers (leia todas as respostas, não faça break)
     for (size_t i = 0; i < nums.size() && i < 4; i++) {
-        int ok = 0;
-        read(from_worker[i][0], &ok, sizeof(int));
+        bool ok = 0;
+        read(from_worker[i][0], &ok, sizeof(bool));
         if (ok && !solved) {
             read_board(from_worker[i][0], solved_board);
             solved = 1;
+            // Não faça break, continue lendo todos para garantir que o solved_board seja preenchido
         }
     }
 

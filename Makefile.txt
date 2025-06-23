@@ -1,0 +1,14 @@
+CXX = g++
+CXXFLAGS = -Wall -O2
+LDFLAGS = -pthread
+
+SRC = Final.cpp
+OUT = final
+
+all: $(OUT)
+
+$(OUT): $(SRC)
+    $(CXX) $(CXXFLAGS) -o $(OUT) $(SRC) $(LDFLAGS)
+
+clean:
+    rm -f $(OUT)
